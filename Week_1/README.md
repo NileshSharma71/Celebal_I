@@ -1,7 +1,7 @@
 # Week 1 - Pandas Data Cleaning
 
 ## Task
-Clean and preprocess a raw CSV dataset using pandas.
+Learn Python basics and perform basic data exploration and cleaning using Pandas. Steps: 1.Load a CSV dataset into a Pandas DataFrame. 2.Explore data (head/tail, shape, columns, data types). 3.Handle missing values (identify, fill/drop). 4.Perform basic operations (filter rows, select columns). 5.Remove duplicates. 6.Create a derived column (total_amount = price * quantity). 7.Save the cleaned dataset as a new CSV file. Output: Jupyter Notebook (.ipynb) + cleaned CSV + brief summary.
 
 ## Dataset
 - **Original file:** [Combined Dataset](https://www.kaggle.com/datasets/anvitkumar/shopping-dataset?select=Combined_dataset.csv) (Product data — 1000 rows, 24 columns)
