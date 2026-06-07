@@ -1,0 +1,201 @@
+{
+  "cells": [
+    {
+      "type": "connection",
+      "content": "postgres||postgresql://postgres:mysecretpassword@localhost:5432/week2",
+      "name": "Week2"
+    },
+    {
+      "type": "schema",
+      "content": ""
+    },
+    {
+      "type": "sql",
+      "content": "CREATE TABLE IF NOT EXISTS superstore (\n  row_id INT PRIMARY KEY,\n  order_id VARCHAR(50),\n  order_date VARCHAR(50),\n  ship_date VARCHAR(50),\n  ship_mode VARCHAR(50),\n  customer_id VARCHAR(50),\n  customer_name VARCHAR(100),\n  segment VARCHAR(50),\n  country VARCHAR(100),\n  city VARCHAR(100),\n  state VARCHAR(100),\n  postal_code VARCHAR(20),\n  region VARCHAR(50),\n  product_id VARCHAR(50),\n  category VARCHAR(100),\n  sub_category VARCHAR(100),\n  product_name VARCHAR(255),\n  sales NUMERIC,\n  quantity INT,\n  discount NUMERIC,\n  profit NUMERIC\n);",
+      "name": "create_table"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-1: Table creation and loading the CSV data from dockerized pg-admin tmp folder to the connected database"
+    },
+    {
+      "type": "sql",
+      "content": "COPY superstore\nFROM\n  '/tmp/superstore.csv' DELIMITER ',' CSV HEADER ENCODING 'WIN1252';",
+      "name": "import_data"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT\n  column_name,\n  data_type,\n  character_maximum_length,\n  is_nullable\nFROM\n  information_schema.columns\nWHERE\n  table_name = 'superstore'\nORDER BY\n  ordinal_position;",
+      "name": "schema_info"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-2:Exploring the table"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT\n  *\nFROM\n  superstore\nLIMIT\n  10;",
+      "name": "sample_data"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT COUNT(*) AS total_rows FROM superstore;",
+      "name": "row_count"
+    },
+    {
+      "type": "sql",
+      "content": "-- 2Distinct values for key categorical columns\n\nSELECT\n    COUNT(DISTINCT order_id)      AS unique_orders,\n    COUNT(DISTINCT customer_id)   AS unique_customers,\n    COUNT(DISTINCT product_id)    AS unique_products,\n    COUNT(DISTINCT category)      AS unique_categories,\n    COUNT(DISTINCT sub_category)  AS unique_sub_categories,\n    COUNT(DISTINCT region)        AS unique_regions,\n    COUNT(DISTINCT state)         AS unique_states,\n    COUNT(DISTINCT segment)       AS unique_segments,\n    COUNT(DISTINCT ship_mode)     AS unique_ship_modes\nFROM superstore;",
+      "name": "distinct_counts"
+    },
+    {
+      "type": "sql",
+      "content": "-- 2b. Quick statistical summary of numeric columns\nSELECT\n  ROUND(MIN(sales), 2) AS min_sales,\n  ROUND(MAX(sales), 2) AS max_sales,\n  ROUND(AVG(sales), 2) AS avg_sales,\n  ROUND(MIN(profit), 2) AS min_profit,\n  ROUND(MAX(profit), 2) AS max_profit,\n  ROUND(AVG(profit), 2) AS avg_profit,\n  MIN(quantity) AS min_qty,\n  MAX(quantity) AS max_qty,\n  ROUND(AVG(quantity), 2) AS avg_qty,\n  ROUND(MIN(discount), 2) AS min_discount,\n  ROUND(MAX(discount), 2) AS max_discount,\n  ROUND(AVG(discount), 2) AS avg_discount\nFROM\n  superstore;",
+      "name": "stats_summary"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-3:Applying Where filters"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3a. Filter by Region: Orders from the 'West' region\nSELECT\n  order_id,\n  customer_name,\n  city,\n  state,\n  sales,\n  profit\nFROM\n  superstore\nWHERE\n  region = 'West'\nORDER BY\n  sales DESC\nLIMIT\n  10;",
+      "name": "filter_region"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3b. Filter by Category: Only 'Technology' products\nSELECT\n  order_id,\n  product_name,\n  sub_category,\n  sales,\n  profit\nFROM\n  superstore\nWHERE\n  category = 'Technology'\nORDER BY\n  sales DESC\nLIMIT\n  10;",
+      "name": "filter_category"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3c. Filter by Date: Orders placed in 2017\nSELECT\n  order_id,\n  order_date,\n  customer_name,\n  sales,\n  profit\nFROM\n  superstore\nWHERE\n  TO_DATE(order_date, 'MM/DD/YYYY') BETWEEN '2017-01-01' AND '2017-12-31'\nORDER BY\n  TO_DATE(order_date, 'MM/DD/YYYY')\nLIMIT\n  15;",
+      "name": "filter_date"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3d. Filter by Sales: High-value orders (sales > 1000)\nSELECT\n  order_id,\n  product_name,\n  category,\n  sales,\n  profit,\n  discount\nFROM\n  superstore\nWHERE\n  sales > 1000\nORDER BY\n  sales DESC\nLIMIT\n  15;",
+      "name": "filter_sales"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3e. Combined Filters: Technology products in the East with profit > 100\nSELECT\n  order_id,\n  product_name,\n  city,\n  state,\n  sales,\n  profit\nFROM\n  superstore\nWHERE\n  category = 'Technology'\n  AND region = 'East'\n  AND profit > 100\nORDER BY\n  profit DESC;",
+      "name": "filter_combined"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3f. Loss-making orders (negative profit)\nSELECT\n  order_id,\n  product_name,\n  category,\n  sub_category,\n  sales,\n  discount,\n  profit\nFROM\n  superstore\nWHERE\n  profit < 0\nORDER BY\n  profit ASC\nLIMIT\n  15;",
+      "name": "filter_loss"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-4:Using group by for aggregations"
+    },
+    {
+      "type": "sql",
+      "content": "-- 4a. Total Sales, Profit, and Quantity by Category\nSELECT\n  category,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  SUM(quantity) AS total_quantity,\n  COUNT(*) AS order_count\nFROM\n  superstore\nGROUP BY\n  category\nORDER BY\n  total_sales DESC;",
+      "name": "group_category"
+    },
+    {
+      "type": "sql",
+      "content": "-- 4b. Sales and Profit by Sub-Category\nSELECT\n  sub_category,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  ROUND(AVG(discount), 2) AS avg_discount,\n  COUNT(*) AS order_count\nFROM\n  superstore\nGROUP BY\n  sub_category\nORDER BY\n  total_profit DESC;",
+      "name": "group_subcategory"
+    },
+    {
+      "type": "sql",
+      "content": "-- 4c. Sales and Profit by Region\nSELECT\n  region,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  ROUND(AVG(sales), 2) AS avg_order_value,\n  SUM(quantity) AS total_quantity,\n  COUNT(DISTINCT order_id) AS unique_orders\nFROM\n  superstore\nGROUP BY\n  region\nORDER BY\n  total_sales DESC;",
+      "name": "group_region"
+    },
+    {
+      "type": "sql",
+      "content": "-- 4d. Average Sales and Profit by Segment\nSELECT\n  segment,\n  COUNT(*) AS order_count,\n  ROUND(AVG(sales), 2) AS avg_sales,\n  ROUND(AVG(profit), 2) AS avg_profit,\n  ROUND(AVG(quantity), 2) AS avg_quantity\nFROM\n  superstore\nGROUP BY\n  segment\nORDER BY\n  avg_sales DESC;",
+      "name": "group_segment"
+    },
+    {
+      "type": "sql",
+      "content": "-- 4e. Sales by Ship Mode\nSELECT\n  ship_mode,\n  COUNT(*) AS order_count,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(AVG(sales), 2) AS avg_sales,\n  ROUND(SUM(profit), 2) AS total_profit\nFROM\n  superstore\nGROUP BY\n  ship_mode\nORDER BY\n  total_sales DESC;",
+      "name": "group_shipmode"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-5:Sorting and limiting"
+    },
+    {
+      "type": "sql",
+      "content": "-- 5a. Top 10 Products by Total Sales\nSELECT\n  product_name,\n  category,\n  sub_category,\n  ROUND(SUM(sales), 2) AS total_sales,\n  SUM(quantity) AS total_qty_sold\nFROM\n  superstore\nGROUP BY\n  product_name,\n  category,\n  sub_category\nORDER BY\n  total_sales DESC\nLIMIT\n  10;",
+      "name": "top_products_sales"
+    },
+    {
+      "type": "sql",
+      "content": "-- 5b. Top 10 Most Profitable Products\nSELECT\n  product_name,\n  category,\n  ROUND(SUM(profit), 2) AS total_profit,\n  ROUND(SUM(sales), 2) AS total_sales\nFROM\n  superstore\nGROUP BY\n  product_name,\n  category\nORDER BY\n  total_profit DESC\nLIMIT\n  10;",
+      "name": "top_products_profit"
+    },
+    {
+      "type": "sql",
+      "content": "-- 5c. Bottom 10 Products (Biggest Losses)\nSELECT\n  product_name,\n  category,\n  sub_category,\n  ROUND(SUM(profit), 2) AS total_profit,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(AVG(discount), 2) AS avg_discount\nFROM\n  superstore\nGROUP BY\n  product_name,\n  category,\n  sub_category\nORDER BY\n  total_profit ASC\nLIMIT\n  10;",
+      "name": "bottom_products"
+    },
+    {
+      "type": "sql",
+      "content": "-- 5d. Top 10 States by Revenue\nSELECT\n  state,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  COUNT(DISTINCT order_id) AS total_orders\nFROM\n  superstore\nGROUP BY\n  state\nORDER BY\n  total_sales DESC\nLIMIT\n  10;",
+      "name": "top_states"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-6:Solve use cases"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6a. Monthly Sales Trend (across all years)\nSELECT\n  EXTRACT(\n    YEAR\n    FROM\n      TO_DATE(order_date, 'MM/DD/YYYY')\n  ) AS YEAR,\n  EXTRACT(\n    MONTH\n    FROM\n      TO_DATE(order_date, 'MM/DD/YYYY')\n  ) AS MONTH,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  COUNT(DISTINCT order_id) AS order_count\nFROM\n  superstore\nGROUP BY\n  YEAR,\n  MONTH\nORDER BY\n  YEAR,\n  MONTH;",
+      "name": "monthly_trends"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6b. Yearly Sales Summary\nSELECT\n  EXTRACT(\n    YEAR\n    FROM\n      TO_DATE(order_date, 'MM/DD/YYYY')\n  ) AS YEAR,\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(SUM(profit), 2) AS total_profit,\n  SUM(quantity) AS total_quantity,\n  COUNT(DISTINCT order_id) AS total_orders,\n  COUNT(DISTINCT customer_id) AS total_customers\nFROM\n  superstore\nGROUP BY\n  YEAR\nORDER BY\n  YEAR;",
+      "name": "yearly_summary"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6c. Top 10 Customers by Total Spend\nSELECT\n  customer_id,\n  customer_name,\n  segment,\n  ROUND(SUM(sales), 2) AS total_spent,\n  ROUND(SUM(profit), 2) AS total_profit,\n  COUNT(DISTINCT order_id) AS total_orders,\n  SUM(quantity) AS items_purchased\nFROM\n  superstore\nGROUP BY\n  customer_id,\n  customer_name,\n  segment\nORDER BY\n  total_spent DESC\nLIMIT\n  10;",
+      "name": "top_customers"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6d. Repeat Customers (more than 10 orders)\nSELECT\n  customer_id,\n  customer_name,\n  segment,\n  COUNT(DISTINCT order_id) AS order_count,\n  ROUND(SUM(sales), 2) AS total_sales\nFROM\n  superstore\nGROUP BY\n  customer_id,\n  customer_name,\n  segment\nHAVING\n  COUNT(DISTINCT order_id) > 10\nORDER BY\n  order_count DESC;",
+      "name": "repeat_customers"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6e. Check for Duplicate Rows (same row_id appearing more than once)\nSELECT\n  row_id,\n  COUNT(*) AS occurrence\nFROM\n  superstore\nGROUP BY\n  row_id\nHAVING\n  COUNT(*) > 1\nORDER BY\n  occurrence DESC;",
+      "name": "duplicate_rows"
+    },
+    {
+      "type": "sql",
+      "content": "-- 6f. Check for Duplicate Orders (same order with same product)\nSELECT\n  order_id,\n  product_id,\n  customer_id,\n  COUNT(*) AS occurrence\nFROM\n  superstore\nGROUP BY\n  order_id,\n  product_id,\n  customer_id\nHAVING\n  COUNT(*) > 1\nORDER BY\n  occurrence DESC\nLIMIT\n  10;",
+      "name": "duplicate_orders"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step-7:Validating the results"
+    },
+    {
+      "type": "sql",
+      "content": "-- 7a. Total row count (should be 9994 for the standard Superstore dataset)\nSELECT\n  COUNT(*) AS total_rows\nFROM\n  superstore;",
+      "name": "validate_count"
+    },
+    {
+      "type": "sql",
+      "content": "-- 7b. Check for NULL values in critical columns\nSELECT\n  SUM(\n    CASE\n      WHEN order_id IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_order_id,\n  SUM(\n    CASE\n      WHEN customer_id IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_customer_id,\n  SUM(\n    CASE\n      WHEN product_id IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_product_id,\n  SUM(\n    CASE\n      WHEN sales IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_sales,\n  SUM(\n    CASE\n      WHEN profit IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_profit,\n  SUM(\n    CASE\n      WHEN category IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_category,\n  SUM(\n    CASE\n      WHEN region IS NULL THEN 1\n      ELSE 0\n    END\n  ) AS null_region\nFROM\n  superstore;",
+      "name": "null_check"
+    },
+    {
+      "type": "sql",
+      "content": "-- 7c. Cross-verify: Sum of regional sales should equal total sales\nSELECT\n  ROUND(SUM(sales), 2) AS total_sales,\n  ROUND(\n    (\n      SELECT\n        SUM(sales)\n      FROM\n        superstore\n      WHERE\n        region = 'East'\n    ) + (\n      SELECT\n        SUM(sales)\n      FROM\n        superstore\n      WHERE\n        region = 'West'\n    ) + (\n      SELECT\n        SUM(sales)\n      FROM\n        superstore\n      WHERE\n        region = 'Central'\n    ) + (\n      SELECT\n        SUM(sales)\n      FROM\n        superstore\n      WHERE\n        region = 'South'\n    ),\n    2\n  ) AS sum_of_regions,\n  CASE\n    WHEN ROUND(SUM(sales), 2) = ROUND(\n      (\n        SELECT\n          SUM(sales)\n        FROM\n          superstore\n        WHERE\n          region = 'East'\n      ) + (\n        SELECT\n          SUM(sales)\n        FROM\n          superstore\n        WHERE\n          region = 'West'\n      ) + (\n        SELECT\n          SUM(sales)\n        FROM\n          superstore\n        WHERE\n          region = 'Central'\n      ) + (\n        SELECT\n          SUM(sales)\n        FROM\n          superstore\n        WHERE\n          region = 'South'\n      ),\n      2\n    ) THEN 'PASS'\n    ELSE 'FAIL'\n  END AS validation_result\nFROM\n  superstore;",
+      "name": "cross_verify"
+    },
+    {
+      "type": "sql",
+      "content": "-- 7d. Date range validation\nSELECT\n  MIN(TO_DATE(order_date, 'MM/DD/YYYY')) AS earliest_order,\n  MAX(TO_DATE(order_date, 'MM/DD/YYYY')) AS latest_order,\n  MAX(TO_DATE(order_date, 'MM/DD/YYYY')) - MIN(TO_DATE(order_date, 'MM/DD/YYYY')) AS date_span_days\nFROM\n  superstore;",
+      "name": "date_range"
+    }
+  ]
+}
