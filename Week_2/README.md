@@ -57,9 +57,10 @@ Learn SQL basics using PostgreSQL and perform data exploration, filtering, aggre
 ## Key Findings
 - **Technology** has the highest avg order value but also the biggest losses (due to heavy discounts on Machines).
 - **West** region leads in total sales, **Central** has the lowest profit.
-- **Standard Class** shipping is the most used but slowest (~5 days avg).
-- **Higher discounts (40%+) almost always result in negative profit.**
 - No missing values or duplicate rows in the dataset.
+
+## Output
+- Query results with screenshots: [`week2_output.pdf`](week2_output.pdf)
 
 ## How to Run
 1. Start PostgreSQL (Docker or local install).
