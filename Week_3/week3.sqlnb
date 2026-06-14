@@ -1,0 +1,190 @@
+{
+  "cells": [
+    {
+      "type": "connection",
+      "content": "postgres||postgresql://postgres:mysecretpassword@localhost:5432/week3",
+      "name": "Week3"
+    },
+    {
+      "type": "schema",
+      "content": ""
+    },
+    {
+      "type": "markdown",
+      "content": "# Week 3 - SQL Advanced Analytics\nUsing Subqueries, CTEs and Window Functions to analyze the Superstore dataset"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 1: Load superstore data into staging table"
+    },
+    {
+      "type": "sql",
+      "content": "CREATE TABLE IF NOT EXISTS superstore_raw (\n  row_id INT PRIMARY KEY,\n  order_id VARCHAR(50),\n  order_date VARCHAR(50),\n  ship_date VARCHAR(50),\n  ship_mode VARCHAR(50),\n  customer_id VARCHAR(50),\n  customer_name VARCHAR(100),\n  segment VARCHAR(50),\n  country VARCHAR(100),\n  city VARCHAR(100),\n  state VARCHAR(100),\n  postal_code VARCHAR(20),\n  region VARCHAR(50),\n  product_id VARCHAR(50),\n  category VARCHAR(100),\n  sub_category VARCHAR(100),\n  product_name VARCHAR(255),\n  sales NUMERIC,\n  quantity INT,\n  discount NUMERIC,\n  profit NUMERIC\n);",
+      "name": "create_raw_table"
+    },
+    {
+      "type": "sql",
+      "content": "COPY superstore_raw\nFROM '/tmp/superstore.csv'\nDELIMITER ',' CSV HEADER ENCODING 'WIN1252';",
+      "name": "load_csv"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT * FROM superstore_raw LIMIT 10;",
+      "name": "peek_data"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT COUNT(*) as total_rows FROM superstore_raw;",
+      "name": "row_count"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 2: Create normalized tables from raw data\nSplitting superstore_raw into customers, orders, and products using SELECT DISTINCT"
+    },
+    {
+      "type": "sql",
+      "content": "CREATE TABLE customers AS\nSELECT DISTINCT\n  customer_id,\n  customer_name,\n  segment\nFROM\n  superstore_raw;",
+      "name": "create_customers"
+    },
+    {
+      "type": "sql",
+      "content": "-- products table\n\nCREATE TABLE products AS\nSELECT DISTINCT\n    product_id,\n    product_name,\n    category,\n    sub_category\nFROM superstore_raw;",
+      "name": "create_products"
+    },
+    {
+      "type": "sql",
+      "content": "CREATE TABLE orders AS\nSELECT\n    row_id,\n    order_id,\n    order_date,\n    ship_date,\n    ship_mode,\n    customer_id,\n    country,\n    city,\n    state,\n    postal_code,\n    region,\n    product_id,\n    sales,\n    quantity,\n    discount,\n    profit\nFROM superstore_raw;",
+      "name": "create_orders"
+    },
+    {
+      "type": "sql",
+      "content": "-- quick check on the new tables\nSELECT 'customers' as tbl, COUNT(*) as cnt FROM customers\nUNION ALL\nSELECT 'products', COUNT(*) FROM products\nUNION ALL\nSELECT 'orders', COUNT(*) FROM orders;",
+      "name": "verify_tables"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT  * FROM customers LIMIT 10;",
+      "name": "table_13"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT * FROM orders LIMIT 10;",
+      "name": "table_14"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT * FROM products LIMIT 10;",
+      "name": "table_15"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 3: Subqueries"
+    },
+    {
+      "type": "sql",
+      "content": "-- 3a. orders where sales is above the overall average\n\nSELECT\n    order_id,\n    customer_id,\n    product_id,\n    sales,\n    profit\nFROM orders\nWHERE sales > (SELECT AVG(sales) FROM orders)\nORDER BY sales DESC\nLIMIT 15;",
+      "name": "above_avg_sales"
+    },
+    {
+      "type": "sql",
+      "content": "--the single highest sales order\n\nSELECT\n    o.order_id,\n    c.customer_name,\n    p.product_name,\n    o.sales,\n    o.profit\nFROM orders o\nJOIN customers c ON o.customer_id = c.customer_id\nJOIN products p ON o.product_id = p.product_id\nWHERE o.sales = (SELECT MAX(sales) FROM orders);",
+      "name": "highest_sale"
+    },
+    {
+      "type": "sql",
+      "content": "--orders that beat the average sales of their own category\nSELECT\n  o.order_id,\n  p.category,\n  p.product_name,\n  o.sales\nFROM\n  orders o\n  JOIN products p ON o.product_id = p.product_id\nWHERE\n  o.sales > (\n    SELECT\n      AVG(oo.sales)\n    FROM\n      orders oo\n      JOIN products pp ON oo.product_id = pp.product_id\n    WHERE\n      pp.category = p.category\n  )\nORDER BY\n  o.sales DESC\nLIMIT\n  20;",
+      "name": "above_category_avg"
+    },
+    {
+      "type": "sql",
+      "content": "--customers who have placed more orders than the average customer\nSELECT\n  customer_id,\n  order_count\nFROM\n  (\n    SELECT\n      customer_id,\n      COUNT(DISTINCT order_id) AS order_count\n    FROM\n      orders\n    GROUP BY\n      customer_id\n  ) sub\nWHERE\n  order_count > (\n    SELECT\n      AVG(order_count)\n    FROM\n      (\n        SELECT\n          COUNT(DISTINCT order_id) AS order_count\n        FROM\n          orders\n        GROUP BY\n          customer_id\n      ) avg_sub\n  )\nORDER BY\n  order_count DESC;",
+      "name": "above_avg_order_count"
+    },
+    {
+      "type": "sql",
+      "content": "--top 5 products by total sales using subquery in FROM\n\nSELECT\n    p.product_name,\n    p.category,\n    prod_sales.total_sales\nFROM (\n    SELECT product_id, ROUND(SUM(sales),2) as total_sales\n    FROM orders\n    GROUP BY product_id\n    ORDER BY total_sales DESC\n    LIMIT 5\n) prod_sales\nJOIN products p ON prod_sales.product_id = p.product_id\nORDER BY prod_sales.total_sales DESC;",
+      "name": "top5_products_subq"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 4: Common Table Expressions (CTEs)\nNOw using WITH clauses for cleaner aggregations and multi-step analysis"
+    },
+    {
+      "type": "sql",
+      "content": "--customer-level sales summary using CTE\nWITH\n  cust_met AS (\n    SELECT\n      o.customer_id,\n      c.customer_name,\n      c.segment,\n      COUNT(DISTINCT o.order_id) AS total_orders,\n      ROUND(SUM(o.sales), 2) AS total_sales,\n      ROUND(SUM(o.profit), 2) AS total_profit,\n      ROUND(AVG(o.sales), 2) AS avg_order_value\n    FROM\n      orders o\n      JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY\n      o.customer_id,\n      c.customer_name,\n      c.segment\n  )\nSELECT\n  *\nFROM\n  cust_met\nORDER BY\n  total_sales DESC\nLIMIT\n  15;",
+      "name": "cte_customer_metrics"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 5: Window Functions\nApplying ROW_NUMBER, RANK and DENSE_RANK for ranking analysis"
+    },
+    {
+      "type": "sql",
+      "content": "SELECT\n  customer_id,\n  order_id,\n  sales,\n  ROW_NUMBER() OVER (\n    PARTITION BY\n      customer_id\n    ORDER BY\n      sales DESC\n  ) AS row_num\nFROM\n  orders\nLIMIT\n  20;",
+      "name": "wf_row_number"
+    },
+    {
+      "type": "sql",
+      "content": "--get each customer's top order (their highest sale)\n\nSELECT * FROM (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        o.order_id,\n        o.sales,\n        ROW_NUMBER() OVER(\n            PARTITION BY o.customer_id\n            ORDER BY o.sales DESC\n        ) as row_num\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n) ranked\nWHERE row_num = 1\nORDER BY sales DESC\nLIMIT 10;",
+      "name": "wf_top_order_per_cust"
+    },
+    {
+      "type": "sql",
+      "content": "--RANK vs DENSE_RANK comparison on customer total sales\nWITH\n  cust_totals AS (\n    SELECT\n      customer_id,\n      ROUND(SUM(sales), 2) AS total_sales\n    FROM\n      orders\n    GROUP BY\n      customer_id\n  )\nSELECT\n  customer_id,\n  total_sales,\n  RANK() OVER (\n    ORDER BY\n      total_sales DESC\n  ) AS rank_num,\n  DENSE_RANK() OVER (\n    ORDER BY\n      total_sales DESC\n  ) AS dense_rank_num,\n  ROW_NUMBER() OVER (\n    ORDER BY\n      total_sales DESC\n  ) AS row_num\nFROM\n  cust_totals\nLIMIT\n  20;",
+      "name": "wf_rank_comparison"
+    },
+    {
+      "type": "sql",
+      "content": "--rank products within each category by total sales\n\nWITH product_totals AS (\n    SELECT\n        p.product_id,\n        p.product_name,\n        p.category,\n        ROUND(SUM(o.sales),2) as total_sales\n    FROM orders o\n    JOIN products p ON o.product_id = p.product_id\n    GROUP BY p.product_id, p.product_name, p.category\n)\nSELECT\n    category,\n    product_name,\n    total_sales,\n    DENSE_RANK() OVER(\n        PARTITION BY category\n        ORDER BY total_sales DESC\n    ) as category_rank\nFROM product_totals\nORDER BY category, category_rank\nLIMIT 25;",
+      "name": "wf_product_rank_by_cat"
+    },
+    {
+      "type": "sql",
+      "content": "--running total of sales per customer (ordered by order date)\n\nSELECT\n    o.customer_id,\n    c.customer_name,\n    o.order_id,\n    o.order_date,\n    o.sales,\n    SUM(o.sales) OVER(\n        PARTITION BY o.customer_id\n        ORDER BY TO_DATE(o.order_date,'MM/DD/YYYY')\n        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) as running_total\nFROM orders o\nJOIN customers c ON o.customer_id = c.customer_id\nORDER BY o.customer_id, TO_DATE(o.order_date,'MM/DD/YYYY')\nLIMIT 25;",
+      "name": "wf_running_total"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 6: Combining JOINs + CTEs + Window Functions"
+    },
+    {
+      "type": "sql",
+      "content": "--full customer ranking report with segment-level ranks\n\nWITH cust_agg AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        c.segment,\n        COUNT(DISTINCT o.order_id) as num_orders,\n        ROUND(SUM(o.sales), 2) as total_sales,\n        ROUND(SUM(o.profit), 2) as total_profit,\n        ROUND(AVG(o.sales), 2) as avg_sale\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY o.customer_id, c.customer_name, c.segment\n)\nSELECT\n    customer_name,\n    segment,\n    num_orders,\n    total_sales,\n    total_profit,\n    avg_sale,\n    RANK() OVER(ORDER BY total_sales DESC) as overall_rank,\n    RANK() OVER(PARTITION BY segment ORDER BY total_sales DESC) as segment_rank\nFROM cust_agg\nORDER BY overall_rank\nLIMIT 20;",
+      "name": "full_customer_ranking"
+    },
+    {
+      "type": "sql",
+      "content": "--top 3 customers per segment\n\nWITH cust_sales AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        c.segment,\n        ROUND(SUM(o.sales),2) as total_sales\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY o.customer_id, c.customer_name, c.segment\n),\nranked AS (\n    SELECT\n        *,\n        ROW_NUMBER() OVER(PARTITION BY segment ORDER BY total_sales DESC) as seg_rank\n    FROM cust_sales\n)\nSELECT\n    segment,\n    customer_name,\n    total_sales,\n    seg_rank\nFROM ranked\nWHERE seg_rank <= 3\nORDER BY segment, seg_rank;",
+      "name": "top3_per_segment"
+    },
+    {
+      "type": "sql",
+      "content": "--each customer's best selling product category\n\nWITH cust_cat_sales AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        p.category,\n        ROUND(SUM(o.sales),2) as cat_sales\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    JOIN products p ON o.product_id = p.product_id\n    GROUP BY o.customer_id, c.customer_name, p.category\n),\nranked_cats AS (\n    SELECT *,\n        ROW_NUMBER() OVER(PARTITION BY customer_id ORDER BY cat_sales DESC) as row_num\n    FROM cust_cat_sales\n)\nSELECT\n    customer_name,\n    category as top_category,\n    cat_sales\nFROM ranked_cats\nWHERE row_num = 1\nORDER BY cat_sales DESC\nLIMIT 15;",
+      "name": "best_category_per_cust"
+    },
+    {
+      "type": "markdown",
+      "content": "## Step 7: Some Business queries"
+    },
+    {
+      "type": "sql",
+      "content": "--Top 10 customers by total sales\n\nWITH cust_summary AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        c.segment,\n        ROUND(SUM(o.sales),2) as total_sales,\n        ROUND(SUM(o.profit),2) as total_profit,\n        COUNT(DISTINCT o.order_id) as order_count\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY o.customer_id, c.customer_name, c.segment\n)\nSELECT *\nFROM cust_summary\nORDER BY total_sales DESC\nLIMIT 10;",
+      "name": "top10_customers"
+    },
+    {
+      "type": "sql",
+      "content": "--Bottom 10 customers (lowest sales)\n\nWITH cust_summary AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        c.segment,\n        ROUND(SUM(o.sales),2) as total_sales,\n        ROUND(SUM(o.profit),2) as total_profit,\n        COUNT(DISTINCT o.order_id) as order_count\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY o.customer_id, c.customer_name, c.segment\n)\nSELECT *\nFROM cust_summary\nORDER BY total_sales ASC\nLIMIT 10;",
+      "name": "bottom10_customers"
+    },
+    {
+      "type": "sql",
+      "content": "--customers who only placed a single order\n\nWITH cust_orders AS (\n    SELECT\n        o.customer_id,\n        c.customer_name,\n        c.segment,\n        COUNT(DISTINCT o.order_id) as order_count,\n        ROUND(SUM(o.sales),2) as total_sales\n    FROM orders o\n    JOIN customers c ON o.customer_id = c.customer_id\n    GROUP BY o.customer_id, c.customer_name, c.segment\n)\nSELECT *\nFROM cust_orders\nWHERE order_count = 1\nORDER BY total_sales DESC;",
+      "name": "single_order_customers"
+    },
+    {
+      "type": "sql",
+      "content": "--customer distribution summary,i.e., how many are above avg vs below avg\nWITH\n  cust_totals AS (\n    SELECT\n      customer_id,\n      SUM(sales) AS total_sales\n    FROM\n      orders\n    GROUP BY\n      customer_id\n  ),\n  avg_calc AS (\n    SELECT\n      AVG(total_sales) AS avg_sales\n    FROM\n      cust_totals\n  )\nSELECT\n  CASE\n    WHEN ct.total_sales > ac.avg_sales THEN 'Above Average'\n    ELSE 'Below Average'\n  END AS cust_grp,\n  COUNT(*) AS num_customers,\n  ROUND(AVG(ct.total_sales), 2) AS group_avg_sales,\n  ROUND(MIN(ct.total_sales), 2) AS min_sales,\n  ROUND(MAX(ct.total_sales), 2) AS max_sales\nFROM\n  cust_totals ct\n  CROSS JOIN avg_calc ac\nGROUP BY\n  cust_grp \nORDER BY\n  group_avg_sales DESC;",
+      "name": "customer_distribution"
+    }
+  ]
+}
