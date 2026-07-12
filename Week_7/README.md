@@ -115,7 +115,7 @@ Week_7/
 ![Merge Operation](screenshots/Screenshot%20from%202026-07-13%2002-52-53.png)
 
 ### Step 4 — Validation & Results
-![Validation](screenshots/Screenshot%20from%202026-07-13%2002-57-54.png)
-
+![Validation](screenshots/Screenshot%20from%202026-07-13%2002-56-33.png)
 ### Step 5 — Transaction History
-![Transaction History](screenshots/Screenshot%20from%202026-07-13%2002-56-33.png)
+
+![Transaction History](screenshots/Screenshot%20from%202026-07-13%2002-57-54.png)
